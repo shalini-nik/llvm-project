@@ -51887,6 +51887,22 @@ static SDValue combineOr(SDNode *N, SelectionDAG &DAG,
     }
   }
 
+  if (N0.getOpcode() == ISD::SHL || N1.getOpcode() == ISD::SHL){
+    SDValue SHL = (N0.getOpcode() == ISD::SHL) ? N0 : N1;
+    SDValue OtherOp = (N0.getOpcode() == ISD::SHL) ? N1 : N0;
+    if (OtherOp.getOpcode() == X86ISD::BZHI) {
+      SDValue BZHI = OtherOp;
+      unsigned shiftval = SHL.getConstantOperandVal(0);
+      unsigned numbits = SHL.getScalarValueSizeInBits();
+      unsigned newshift = numbits - shiftval;
+      SDValue newSHL = DAG.getNode(ISD::SHL,dl,VT,DAG.getConstant(newshift, dl, MVT::i8),
+                                  BZHI.getOperand(0));
+      SDValue SHRD = DAG.getNode(X86ISD::FSHR,dl,VT,DAG.getConstant(newshift, dl, MVT::i8),
+                                  SHL.getOperand(1),newSHL);
+      return SHRD;
+    }
+  }
+  
   if (SDValue SetCC = combineAndOrForCcmpCtest(N, DAG, DCI, Subtarget))
     return SetCC;
 
