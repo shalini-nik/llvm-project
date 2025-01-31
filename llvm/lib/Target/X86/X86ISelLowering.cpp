@@ -51890,18 +51890,34 @@ static SDValue combineOr(SDNode *N, SelectionDAG &DAG,
   if (N0.getOpcode() == ISD::SHL || N1.getOpcode() == ISD::SHL){
     SDValue SHL = (N0.getOpcode() == ISD::SHL) ? N0 : N1;
     SDValue OtherOp = (N0.getOpcode() == ISD::SHL) ? N1 : N0;
-    if (OtherOp.getOpcode() == X86ISD::BZHI) {
-      SDValue BZHI = OtherOp;
-      unsigned shiftval = SHL.getConstantOperandVal(0);
-      unsigned numbits = SHL.getScalarValueSizeInBits();
-      unsigned newshift = numbits - shiftval;
-      SDValue newSHL = DAG.getNode(ISD::SHL,dl,VT,DAG.getConstant(newshift, dl, MVT::i8),
-                                  BZHI.getOperand(0));
-      SDValue SHRD = DAG.getNode(X86ISD::FSHR,dl,VT,DAG.getConstant(newshift, dl, MVT::i8),
-                                  SHL.getOperand(1),newSHL);
-      return SHRD;
+    LLVM_DEBUG(dbgs()<<"[combineor] detected ISD::SHL "<<"\n")
+    SHL.dump();
+    SHL.getOperand(0).dump();
+    SHL.getOperand(1).dump();
+    if (OtherOp.getOpcode() == ISD::AND) {
+      SDValue andop = OtherOp;
+    LLVM_DEBUG(dbgs()<<"[combineor] detected x86isd::and"<<"\n");
+    andop.dump();
+    andop.getOperand(0).dump();
+    andop.getOperand(1).dump();
+    if(andop.getOperand(0).getOpcode()==ISD::Constant||andop.getOperand(1).getOpcode()==ISD::Constant){
+            LLVM_DEBUG(dbgs()<<"[combineor] detected ISD::Constant"<<"\n");
+            SDValue constOp = andop.getOperand(0).getOpcode()==ISD::Constant ? andop.getOperand(0): andop.getOperand(1);
+            auto *ConstRHS = dyn_cast<ConstantSDNode>(constOp);
+            uint64_t maskValue = ConstRHS->getZExtValue();
+            auto *ConstSHL = dyn_cast<ConstantSDNode>(SHL.getOperand(1));
+            uint64_t shiftValue = ConstSHL->getZExtValue();
+            LLVM_DEBUG(dbgs()<<"maskValue: "<<maskValue<<" shiftValue: "<<shiftValue<<"\n");
+            if((((uint64_t)1<<shiftValue)-1)==maskValue){
+                    unsigned numbits = SHL.getScalarValueSizeInBits();
+                    unsigned newshift=numbits-shiftValue;
+                    SDValue newSHL = DAG.getNode(ISD::SHL,dl,VT,SHL.getOperand(0),DAG.getConstant(newshift, dl, MVT::i8));
+                    SDValue R = DAG.getNode(X86ISD::FSHR,dl,VT,
+                                  SHL.getOperand(1),newSHL,DAG.getConstant(newshift, dl, MVT::i8));
+                    return R
+            }
     }
-  }
+    }
   
   if (SDValue SetCC = combineAndOrForCcmpCtest(N, DAG, DCI, Subtarget))
     return SetCC;
